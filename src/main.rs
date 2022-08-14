@@ -1,55 +1,48 @@
-use actix_web::{App, HttpServer, get, HttpRequest, Responder, body::BoxBody, HttpResponse, http::header::ContentType, Error, web, Either};
-use serde::Serialize;
-use futures::{future::ok, stream::once};
+use actix_web::{App, HttpServer, get, web, Result, HttpRequest};
+use serde::Deserialize;
 
-#[derive(Serialize)]
-struct MyResponse {
-    name: &'static str,
+#[derive(Deserialize)]
+struct Info {
+    id: u32,
+    name: String,
 }
 
-impl Responder for MyResponse {
-    type Body = BoxBody;
-
-    fn respond_to(self, _req: &HttpRequest) -> HttpResponse<Self::Body> {
-        let body = serde_json::to_string(&self).unwrap();
-        HttpResponse::Ok()
-            .content_type(ContentType::json())
-            .body(body)
-    }
+#[get("/users/{user_id}/{friend}")]
+async fn friend(path: web::Path<(u32, String)>) -> Result<String> {
+    let (user_id, friend) = path.into_inner();
+    Ok(format!("Welcome {}, user_id: {}", friend, user_id))
 }
 
-#[get("/")]
-async fn index(_req: HttpRequest) -> impl Responder {
-    MyResponse { name: "user" }
+#[get("/items/{id}/{name}")]
+async fn items(info: web::Path<Info>) -> Result<String> {
+    Ok(format!("Item {}, item_id: {}", info.name, info.id))
 }
 
-#[get("/stream")]
-async fn stream() -> HttpResponse {
-    let body = once(ok::<_, Error>(web::Bytes::from_static(b"test")));
-
-    HttpResponse::Ok()
-        .content_type(ContentType::json())
-        .streaming(body)
+#[get("/unsafe/{user_id}/{friend}")]
+async fn unsafe_users(req: HttpRequest) -> Result<String> {
+    let name: String = req.match_info().get("friend").unwrap().parse().unwrap();
+    let user_id: i32 = req.match_info().query("user_id").parse().unwrap();
+    Ok(format!("Welcome {}, user_id: {}", name, user_id))
 }
 
-type RegisterResult = Either<HttpResponse, Result<&'static str, Error>>;
+#[derive(Deserialize)]
+struct QueryParams {
+    username: String,
+}
 
-#[get("/either")]
-async fn either(_req: HttpRequest) -> RegisterResult {
-    if true {
-        Either::Left(HttpResponse::BadRequest().body("Bad Request"))
-    } else {
-        Either::Right(Ok("Hello!"))
-    }
+#[get("/users")]
+async fn users(info: web::Query<QueryParams>) -> String {
+    format!("Finding {} ...", info.username)
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| 
             App::new()
-                .service(index)
-                .service(stream)
-                .service(either)
+                .service(friend)
+                .service(items)
+                .service(unsafe_users)
+                .service(users)
         )
         .bind(("127.0.0.1", 8080))?
         .run()
