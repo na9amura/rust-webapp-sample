@@ -1,9 +1,9 @@
-extern crate dotenv;
+extern crate dotenvy;
 
 use actix_web::{App, HttpServer, post, web, Result};
 use serde::Deserialize;
 use sqlx::postgres::PgPoolOptions;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use std::env;
 
 #[derive(Deserialize)]
