@@ -17,11 +17,32 @@ struct User { id: i32, username: String }
 
 #[post("/send_message")]
 async fn send_message(pool: web::Data<sqlx::Pool<sqlx::Postgres>>, data: web::Json<Post>) -> Result<String> {
-    let user = sqlx::query_as!(User, "SELECT id, username FROM users WHERE users.id = $1 LIMIT 1", data.user_id)
+    let res = sqlx::query_as!(User, "SELECT id, username FROM users WHERE users.id = $1 LIMIT 1", data.user_id)
         .fetch_one(pool.get_ref())
-        .await.unwrap();
+        .await;
+    
+    let user = match res {
+        Err(e) => {
+            match e {
+                sqlx::Error::RowNotFound => return Err(actix_web::error::ErrorNotFound(e)),
+                _ => return Err(actix_web::error::ErrorInternalServerError(e)),
+            }
+        }
+        Ok(u) => u,
+    };
 
-    Ok(format!("{} (ID: {}): {}", user.username, user.id, data.content))
+    // let created_at = sqlx::types::chrono::Utc.timestamp();
+    // let res = sqlx::query!("INSERT INTO messages (user_id, content, created_at) VALUES ($1, $2, $3)", user.id, data.content, created_at)
+    let res = sqlx::query!("INSERT INTO messages (user_id, content, created_at) VALUES ($1, $2, now())", user.id, data.content)
+        .execute(pool.get_ref())
+        .await;
+
+    let count = match res {
+        Err(e) => return Err(actix_web::error::ErrorInternalServerError(e)),
+        Ok(c) => c.rows_affected(),
+    };
+
+    Ok(format!("Saved: {}", count))
 }
 
 #[actix_web::main]
