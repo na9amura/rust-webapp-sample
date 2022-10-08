@@ -7,4 +7,8 @@ FROM mcr.microsoft.com/vscode/devcontainers/rust:1-${VARIANT}
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install --no-install-recommends postgresql
  
-RUN cargo install sqlx-cli --no-default-features --features native-tls,postgres
+RUN cargo install sqlx-cli --no-default-features --features native-tls,postgres \
+    && cargo install sccache
+
+# export RUSTC_WRAPPER=$(which sccache)
+ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache

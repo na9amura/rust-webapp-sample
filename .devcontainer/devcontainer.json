@@ -32,10 +32,10 @@
 			"extensions": [
 				"vadimcn.vscode-lldb",
 				"mutantdino.resourcemonitor",
-				"matklad.rust-analyzer",
 				"tamasfe.even-better-toml",
 				"serayuzgur.crates",
-				"rust-lang.rust-analyzer"
+				"rust-lang.rust-analyzer",
+				"sleistner.vscode-fileutils"
 			]
 		}
 	},
@@ -47,5 +47,5 @@
 	// "postCreateCommand": "rustc --version",
 
 	// Comment out to run as root instead.
-	"remoteUser": "vscode"
+	// "remoteUser": "vscode"
 }
