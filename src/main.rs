@@ -50,7 +50,6 @@ async fn main() -> std::io::Result<()> {
     dotenv().ok();
     
     let db_url = env::var("DATABASE_URL").unwrap();
-    println!("DATABASE_URL: {}", db_url);
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
