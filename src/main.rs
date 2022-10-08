@@ -5,6 +5,7 @@ use serde::Deserialize;
 use sqlx::postgres::PgPoolOptions;
 use dotenvy::dotenv;
 use std::env;
+use sqlx::types::chrono::{Utc, NaiveDateTime};
 
 #[derive(Deserialize)]
 struct Post {
@@ -31,9 +32,8 @@ async fn send_message(pool: web::Data<sqlx::Pool<sqlx::Postgres>>, data: web::Js
         Ok(u) => u,
     };
 
-    // let created_at = sqlx::types::chrono::Utc.timestamp();
-    // let res = sqlx::query!("INSERT INTO messages (user_id, content, created_at) VALUES ($1, $2, $3)", user.id, data.content, created_at)
-    let res = sqlx::query!("INSERT INTO messages (user_id, content, created_at) VALUES ($1, $2, now())", user.id, data.content)
+    let created_at = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+    let res = sqlx::query!("INSERT INTO messages (user_id, content, created_at) VALUES ($1, $2, $3)", user.id, data.content, created_at)
         .execute(pool.get_ref())
         .await;
 
