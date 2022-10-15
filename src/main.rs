@@ -1,15 +1,28 @@
 extern crate dotenvy;
 
-use actix_web::{App, HttpServer, post, web, Result};
-use serde::Deserialize;
+use actix_web::{App, HttpServer, get, post, web, Result};
+use serde::{Deserialize};
 use sqlx::postgres::PgPoolOptions;
 use dotenvy::dotenv;
-use std::env;
+use std::{env};
 use sqlx::types::chrono::{Utc, NaiveDateTime};
+
+#[derive(Debug, Deserialize)]
+struct ReadMessageParams {
+    user_id: i32,
+    message_id: i32,
+}
 
 #[derive(Deserialize)]
 struct Post {
     user_id: i32,
+    content: String,
+}
+
+struct Message {
+    id: i32,
+    user_id: i32,
+    created_at: NaiveDateTime,
     content: String,
 }
 
@@ -45,6 +58,37 @@ async fn send_message(pool: web::Data<sqlx::Pool<sqlx::Postgres>>, data: web::Js
     Ok(format!("Saved: {}", count))
 }
 
+#[get("/users/{user_id}/messages/{message_id}")]
+async fn read_message(pool: web::Data<sqlx::Pool<sqlx::Postgres>>, params: web::Path<ReadMessageParams>) -> Result<String> {
+    println!("Received {:?}", params);
+
+    let res = sqlx::query_as!(User, "SELECT id, username FROM users WHERE users.id = $1 LIMIT 1", params.user_id)
+        .fetch_one(pool.get_ref())
+        .await;
+
+    if let Err(e) = res {
+        match e {
+            sqlx::Error::RowNotFound => return Err(actix_web::error::ErrorNotFound(e)),
+            _ => return Err(actix_web::error::ErrorInternalServerError(e)),
+        }
+    }
+
+    let res = sqlx::query_as!(Message, "SELECT * FROM messages WHERE user_id = $1 and id = $2 LIMIT 1", params.user_id, params.message_id)
+        .fetch_one(pool.get_ref())
+        .await;
+
+    let message = match res {
+        Err(e) => {
+            match e {
+                sqlx::Error::RowNotFound => return Err(actix_web::error::ErrorNotFound(e)),
+                _ => return Err(actix_web::error::ErrorInternalServerError(e)),
+            }
+        }
+        Ok(m) => m,
+    };
+    Ok(format!("id: {}, user_id: {}, created_at: {}, content: {}", message.id, message.user_id, message.created_at, message.content))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
@@ -59,6 +103,7 @@ async fn main() -> std::io::Result<()> {
             App::new()
                 .app_data(web::Data::new(pool.clone()))
                 .service(send_message)
+                .service(read_message)
         )
         .bind(("127.0.0.1", 8080))?
         .run()
