@@ -1,6 +1,7 @@
 extern crate dotenvy;
 
-use actix_web::{App, HttpServer, get, post, web, Result, middleware};
+use actix_web::{App, HttpServer, get, post, web, Result, middleware, cookie};
+use actix_session::{Session, SessionMiddleware, storage::CookieSessionStore};
 use serde::{Deserialize};
 use sqlx::postgres::PgPoolOptions;
 use dotenvy::dotenv;
@@ -60,8 +61,16 @@ async fn send_message(pool: web::Data<sqlx::Pool<sqlx::Postgres>>, data: web::Js
 }
 
 #[get("/users/{user_id}/messages/{message_id}")]
-async fn read_message(pool: web::Data<sqlx::Pool<sqlx::Postgres>>, params: web::Path<ReadMessageParams>) -> Result<String> {
-    println!("Received {:?}", params);
+async fn read_message(
+    session: Session,
+    pool: web::Data<sqlx::Pool<sqlx::Postgres>>, 
+    params: web::Path<ReadMessageParams>
+) -> Result<String> {
+    if let Some(count) = session.get::<i32>("counter")? {
+        session.insert("counter", count + 1)?;
+    } else {
+        session.insert("counter", 1)?;
+    }
 
     let res = sqlx::query_as!(User, "SELECT id, username FROM users WHERE users.id = $1 LIMIT 1", params.user_id)
         .fetch_one(pool.get_ref())
@@ -87,7 +96,12 @@ async fn read_message(pool: web::Data<sqlx::Pool<sqlx::Postgres>>, params: web::
         }
         Ok(m) => m,
     };
-    Ok(format!("id: {}, user_id: {}, created_at: {}, content: {}", message.id, message.user_id, message.created_at, message.content))
+    let count = session.get::<i32>("counter")?.unwrap();
+    Ok(format!("id: {}, counter: {}, user_id: {}, created_at: {}, content: {}", message.id, count, message.user_id, message.created_at, message.content))
+}
+
+fn get_secret_key() -> cookie::Key {
+    cookie::Key::from(&[0; 64])
 }
 
 #[actix_web::main]
@@ -102,9 +116,17 @@ async fn main() -> std::io::Result<()> {
 
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
+    let secret_key = get_secret_key();
+
     HttpServer::new(move|| 
             App::new()
                 .wrap(middleware::Logger::default())
+                .wrap(
+                    SessionMiddleware::new(
+                        CookieSessionStore::default(),
+                        secret_key.clone()
+                    )
+                )
                 .app_data(web::Data::new(pool.clone()))
                 .service(send_message)
                 .service(read_message)
