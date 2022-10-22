@@ -12,5 +12,4 @@ RUN sudo apt-get update && export DEBIAN_FRONTEND=noninteractive \
 RUN cargo install sqlx-cli --no-default-features --features native-tls,postgres \
     && cargo install sccache
 
-# export RUSTC_WRAPPER=$(which sccache)
-ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
+ENV RUSTC_WRAPPER=sccache
