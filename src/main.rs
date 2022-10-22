@@ -1,11 +1,12 @@
 extern crate dotenvy;
 
-use actix_web::{App, HttpServer, get, post, web, Result};
+use actix_web::{App, HttpServer, get, post, web, Result, middleware};
 use serde::{Deserialize};
 use sqlx::postgres::PgPoolOptions;
 use dotenvy::dotenv;
 use std::{env};
 use sqlx::types::chrono::{Utc, NaiveDateTime};
+use env_logger::Env;
 
 #[derive(Debug, Deserialize)]
 struct ReadMessageParams {
@@ -99,8 +100,11 @@ async fn main() -> std::io::Result<()> {
         .max_connections(5)
         .connect(&db_url).await.unwrap();
 
+    env_logger::init_from_env(Env::default().default_filter_or("info"));
+
     HttpServer::new(move|| 
             App::new()
+                .wrap(middleware::Logger::default())
                 .app_data(web::Data::new(pool.clone()))
                 .service(send_message)
                 .service(read_message)
