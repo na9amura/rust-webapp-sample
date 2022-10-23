@@ -17,10 +17,7 @@ struct ReadMessageParams {
 }
 
 #[derive(Deserialize)]
-struct Post {
-    user_id: i32,
-    content: String,
-}
+struct Post { content: String }
 
 struct Message {
     id: i32,
@@ -33,23 +30,21 @@ struct Message {
 struct User { id: i32, username: String }
 
 #[post("/send_message")]
-async fn send_message(pool: web::Data<sqlx::Pool<sqlx::Postgres>>, data: web::Json<Post>) -> Result<String> {
-    let res = sqlx::query_as!(User, "SELECT id, username FROM users WHERE users.id = $1 LIMIT 1", data.user_id)
-        .fetch_one(pool.get_ref())
-        .await;
-    
-    let user = match res {
-        Err(e) => {
-            match e {
-                sqlx::Error::RowNotFound => return Err(actix_web::error::ErrorNotFound(e)),
-                _ => return Err(actix_web::error::ErrorInternalServerError(e)),
-            }
-        }
-        Ok(u) => u,
+async fn send_message(
+    user: Option<Identity>,
+    pool: web::Data<sqlx::Pool<sqlx::Postgres>>,
+    data: web::Json<Post>
+) -> Result<String> {
+    let user_id = match user {
+        Some(u) => {
+            let id: i32 = u.id().unwrap().parse().unwrap();
+            id
+        },
+        _ => return Err(actix_web::error::ErrorUnauthorized("Please login")),
     };
-
+    
     let created_at = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
-    let res = sqlx::query!("INSERT INTO messages (user_id, content, created_at) VALUES ($1, $2, $3)", user.id, data.content, created_at)
+    let res = sqlx::query!("INSERT INTO messages (user_id, content, created_at) VALUES ($1, $2, $3)", user_id, data.content, created_at)
         .execute(pool.get_ref())
         .await;
 
@@ -67,10 +62,8 @@ async fn read_message(
     pool: web::Data<sqlx::Pool<sqlx::Postgres>>, 
     params: web::Path<ReadMessageParams>
 ) -> Result<String> {
-
-    let user = match user {
-        Some(u) => u,
-        _ => return Err(actix_web::error::ErrorUnauthorized("Please login")),
+    if user.is_none() {
+        return Err(actix_web::error::ErrorUnauthorized("Please login"))
     };
 
     let res = sqlx::query_as!(Message, "SELECT * FROM messages WHERE user_id = $1 and id = $2 LIMIT 1", params.user_id, params.message_id)
