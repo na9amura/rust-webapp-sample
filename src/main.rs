@@ -3,7 +3,7 @@ extern crate dotenvy;
 use actix_identity::{Identity, IdentityMiddleware};
 use actix_web::{App, HttpServer, get, post, web, Result, middleware, cookie, HttpResponse, Responder, HttpRequest, HttpMessage};
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};
-use serde::{Deserialize};
+use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use sqlx::postgres::PgPoolOptions;
 use dotenvy::dotenv;
 use std::{env};
@@ -24,6 +24,17 @@ struct Message {
     user_id: i32,
     created_at: NaiveDateTime,
     content: String,
+}
+
+impl Serialize for Message {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+        let mut state = serializer.serialize_struct("Message", 4)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("user_id", &self.user_id)?;
+        state.serialize_field("created_at", &self.created_at.to_string())?;
+        state.serialize_field("content", &self.content)?;
+        state.end()
+    }
 }
 
 #[derive(sqlx::FromRow)]
@@ -79,7 +90,8 @@ async fn read_message(
         }
         Ok(m) => m,
     };
-    Ok(format!("id: {}, user_id: {}, created_at: {}, content: {}", message.id, message.user_id, message.created_at, message.content))
+    let json = serde_json::to_string(&message).unwrap();
+    Ok(json)    
 }
 
 #[post("/login")]
