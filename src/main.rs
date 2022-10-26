@@ -3,7 +3,7 @@ extern crate dotenvy;
 use actix_identity::{Identity, IdentityMiddleware};
 use actix_web::{App, HttpServer, get, post, web, Result, middleware, cookie, HttpResponse, Responder, HttpRequest, HttpMessage};
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};
-use serde::{Deserialize, Serialize, ser::SerializeStruct};
+use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use dotenvy::dotenv;
 use std::{env};
@@ -19,23 +19,29 @@ struct ReadMessageParams {
 #[derive(Deserialize)]
 struct Post { content: String }
 
+#[derive(Debug, Serialize)]
 struct Message {
     id: i32,
     user_id: i32,
+    #[serde(serialize_with = "parse_date_time")]
     created_at: NaiveDateTime,
     content: String,
 }
 
-impl Serialize for Message {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-        let mut state = serializer.serialize_struct("Message", 4)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("user_id", &self.user_id)?;
-        state.serialize_field("created_at", &self.created_at.to_string())?;
-        state.serialize_field("content", &self.content)?;
-        state.end()
-    }
+fn parse_date_time<S: serde::Serializer>(date: &NaiveDateTime, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_str(&date.to_string())
 }
+
+// impl Serialize for Message {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+//         let mut state = serializer.serialize_struct("Message", 4)?;
+//         state.serialize_field("id", &self.id)?;
+//         state.serialize_field("user_id", &self.user_id)?;
+//         state.serialize_field("created_at", &self.created_at.to_string())?;
+//         state.serialize_field("content", &self.content)?;
+//         state.end()
+//     }
+// }
 
 #[derive(sqlx::FromRow)]
 struct User { id: i32, username: String }
